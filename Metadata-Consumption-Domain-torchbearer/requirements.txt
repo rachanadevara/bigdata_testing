@@ -1,1 +1,1 @@
-git+https://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@github.com/gsk-tech/torchbearer-python-framework-artifacts.git@V4.0.22
+git+https://github_token@github.com/gsk-tech/torchbearer-python-framework-artifacts.git@V4.0.22
