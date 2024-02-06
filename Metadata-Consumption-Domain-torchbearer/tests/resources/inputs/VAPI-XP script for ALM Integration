@@ -1,0 +1,174 @@
+' ----------------------------------------------------
+' VAPI-XP-Test to perform automation testing
+' ----------------------------------------------------
+Sub Test_Main(Debug, CurrentTestSet, CurrentTSTest, CurrentRun)
+  On Error Resume Next
+  TDOutput.Clear
+
+If Not Debug Then
+  Dim testCaseId
+  Dim testcaseName
+  Dim supportTests
+  Dim filesystemobject
+  Dim new_file
+  Dim testcaseDescription
+  Dim mytest
+  Dim frameworkPath
+  Dim browser
+  Dim isAzureExecuted
+
+  Set oShell = CreateObject( "WScript.Shell" )
+  browser=oShell.ExpandEnvironmentStrings("%browser%")
+  frameworkPath=oShell.ExpandEnvironmentStrings("%frameworkPath%")
+  TDConnection.IgnoreHTMLFormat = TRUE
+
+  'Test whether execution triggers from Azure or HP-ALM
+   if(browser="%browser%")   Then
+   isAzureExecuted="0"
+   Set aParam = CurrentTSTest
+   Set paramValueFct = aParam.ParameterValueFactory
+   Set lst = paramValueFct.NewList("")
+   For Each param In lst
+      With param
+      If StrComp(Trim(.Name), "browser", 1) = 0 Then
+            browser = .DefaultValue
+      Elseif StrComp(Trim(.Name), "gitRepositoryURL", 1) = 0 Then
+            gitRepositoryURL = .DefaultValue
+      Elseif StrComp(Trim(.Name), "localRepositoryPath", 1) = 0 Then
+            localRepositoryPath = .DefaultValue
+      Elseif StrComp(Trim(.Name), "branchName", 1) = 0 Then
+            branchName = .DefaultValue
+      End if
+
+      End With
+   Next
+   Else
+          isAzureExecuted="1"
+   End if
+
+   if(isAzureExecuted)="0"   Then
+      GitURLSplit=Split(gitRepositoryURL, "/")
+      GitTextSplit = Split(GitURLSplit(4), ".git")
+      FrameworkName = GitTextSplit(0)
+      FrameworkPath = localRepositoryPath & "\" & FrameworkName
+      gitBatchFilePath =  localRepositoryPath & "\gitBatch.bat"
+
+   End if
+
+   Set supportTests = TDConnection.TestFactory
+   TDConnection.IgnoreHTMLFormat = TRUE
+   Set Test = TestFactory.Fields
+   testCaseId = ID
+   testcaseName =  Name
+   Set mytest=supportTests.Item(testCaseId)
+   testcaseDescription=mytest.Field("TS_DESCRIPTION")
+
+   if(InStr(testcaseDescription,vbCrLf))>0   Then
+      testcaseDescription= Replace(testcaseDescription,vbCrLf,"<br />")
+   End If
+
+   Set filesystemobject=createobject("scripting.filesystemobject")
+
+     'Create Batch file with git and pytest commands
+   if(isAzureExecuted)="0" Then
+      Set outFile = filesystemobject.CreateTextFile(gitBatchFilePath, True)
+      if(filesystemobject.FolderExists(FrameworkPath))=true Then
+           outFile.WriteLine "cd " & localRepositoryPath
+           outFile.WriteLine "cd " & FrameworkName
+           outFile.WriteLine "git checkout " & branchName
+           outFile.WriteLine "git pull " & gitRepositoryURL & " " & branchName
+
+      Else
+           outFile.WriteLine "cd " & localRepositoryPath
+           outFile.WriteLine "git init"
+           outFile.WriteLine "git clone " & gitRepositoryURL & " -b " & branchName
+
+      End if
+   outFile.Close
+   GitResult=XTools.run(gitBatchFilePath, -1, true)
+   End if
+
+   almFolderPath=frameworkPath&"\tests\resources\inputs\TestManagement\ALM"
+   if(filesystemobject.FolderExists(almFolderPath))=true Then
+       filesystemobject.DeleteFolder almFolderPath
+   End if
+
+   filesystemobject.CreateFolder almFolderPath
+   outputFolderPath=frameworkPath&"\Outputs"
+   almPdfFolderPath=frameworkPath&"\Outputs\ALM\ZipFolder"
+   testManagementFolderPath=frameworkPath&"\tests\resources\inputs\TestManagement"
+   almTextFolderPath=frameworkPath&"\tests\resources\inputs\TestManagement\ALM"
+   if(filesystemobject.FolderExists(outputFolderPath))=true Then
+       filesystemobject.DeleteFolder outputFolderPath
+   End if
+   filesystemobject.CreateFolder testManagementFolderPath
+   filesystemobject.CreateFolder almTextFolderPath
+   filesystemobject.CreateFolder outputFolderPath
+   filesystemobject.CreateFolder almPdfFolderPath
+   Set new_file=filesystemobject.createtextfile(frameworkPath&"\tests\resources\inputs\TestManagement\ALM\RunID_"&CurrentRun.ID&".txt",true)
+   new_file.writeline(testCaseId)
+   new_file.writeline(testcaseName)
+   new_file.writeline(VersionNumber)
+   new_file.writeline(CurrentTestSet.ID)
+   new_file.writeline(CurrentTestSet.TestSetFolder.Path & "\"& CurrentTestSet.Name)
+   new_file.writeline(CurrentRun.ID)
+   new_file.writeline(CurrentRun.Name)
+   new_file.writeline(ProjectName)
+   new_file.writeline(testcaseDescription)
+   new_file.close
+   result1=XTools.run(frameworkPath&"\RunBatch.bat", frameworkPath & " " & testcaseName & " " & browser, -1, true)
+   pdfPath =frameworkPath&"\Outputs\ALM\ZipFolder\"&testcaseName&".zip"
+   result1 = TDOutput.Text
+
+     If InStr(result1, " passed") > 0 Then
+        ReqValue = 0
+
+     ElseIf InStr(result1, " failed") > 0 Then
+          ReqValue=1
+
+     End If
+
+     TDOutput.Print "Value Calculate: " & ReqValue
+     executed = 0
+
+
+   If ReqValue <> "0" Then
+      TDOutput.Print "Run-time error [" & Err.Number & "] : " & Err.Description
+      CurrentRun.Status = "Failed"
+      CurrentTSTest.Status = "Failed"
+      Call uploadLogFile (CurrentRun.Attachments, pdfPath)
+
+   elseif ReqValue = "0"  then
+      CurrentRun.Status = "Passed"
+      CurrentTSTest.Status = "Passed"
+      Call uploadLogFile (CurrentRun.Attachments, pdfPath)
+   End If
+
+Else
+   TDOutput.Print "Debug Mode: As no parameters are set, no Automation will be executed!"
+End If
+
+   Call uploadLogFile (CurrentTSTest.Attachments, pdfPath)
+   if(filesystemobject.FolderExists(almFolderPath))=true Then
+      filesystemobject.DeleteFolder almFolderPath
+   End if
+
+   if(filesystemobject.FolderExists(outputFolderPath))=true Then
+       filesystemobject.DeleteFolder outputFolderPath
+   End if
+
+   'Delete generated Batch file
+   if(isAzureExecuted)="0" Then
+      filesystemobject.DeleteFile gitBatchFilePath
+   End If
+
+End Sub
+
+Sub uploadLogFile(attachmentObj, filePath)
+   dim nowAtt
+   set nowAtt = attachmentObj.AddItem(Null)
+   TDOutput.Print(filePath)
+   nowAtt.FileName = filePath
+   nowAtt.Type = 1
+   nowAtt.post
+End Sub

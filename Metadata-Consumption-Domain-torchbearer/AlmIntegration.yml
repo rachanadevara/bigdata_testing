@@ -1,0 +1,21 @@
+# Python package
+# Create and test a Python package on multiple Python versions.
+# Add steps that analyze code, save the dist with the build record, publish to a PyPI-compatible index, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/python
+
+
+trigger:
+  - master
+
+pool: torchbearer
+
+steps:
+  - task: RunFromALMTask@3
+    inputs:
+      varAlmserv: '$(AlmServerUrl)'
+      varSSOEnabled: true
+      varClientID: '$(ClientID)'
+      varApiKeySecret: '$(ApiKeySecret)'
+      varDomain: '$(AlmDomainName)'
+      varProject: '$(AlmProjectName)'
+      varTestsets: '$(AlmTestSetPath)'
