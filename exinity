@@ -1,0 +1,171 @@
+-- Null check
+
+df = spark.sql("""
+SELECT CASE 
+         WHEN COUNT(*) = 0 THEN 'Match' 
+         ELSE 'No Match' 
+       END AS NULL_CONSTRAINT 
+FROM development.silver_dwh_dev.kyc where 
+(client_id IS NULL or kyc_application_id is null or is_por_present is null or is_por_approved is null or is_poi_present is null or is_poi_approved is null or is_poi_por_combined is null)""")
+PK_Keys = str(df.collect()[0][0])
+print(PK_Keys)
+
+-- Duplicate check
+
+df=spark.sql("""SELECT CASE WHEN COUNT(1) > 1 THEN 'No Match' ELSE 'Match' END AS duplicate
+    FROM (SELECT client_id,kyc_application_id, COUNT(1) FROM development.silver_dwh_dev.kyc
+        GROUP BY client_id,kyc_application_id  HAVING COUNT(1) > 1)""")
+
+
+Duplicate_check = str(df.collect()[0][0])
+print(Duplicate_check)
+
+-- column transformation
+%python
+from pyspark.sql import SparkSession
+
+expected_df = spark.sql("""
+    with stage_identity as(
+        select 
+            kyc.clientId as client_id,
+            kyc.kycApplicationId as kyc_application_id,
+            kyc.stages.identity.kycDocuments as is_poi_present,
+            kyc.stages.identity.status as is_poi_approved,
+            case when kyc.isPOIAndPORCombined ='true'
+            THEN 1 ELSE 0 end as is_poi_por_combined
+        from development.bronze_rbt_uat.customer_db___kyc_scd2 as  kyc  where kyc.__END_AT is NULL
+        ), 
+    stage_proofOfResidence as(
+        select 
+            kyc.clientId as client_id,
+            kyc.kycApplicationId as kyc_application_id,
+            kyc.stages.proofOfResidence.kycDocuments as is_por_present,
+            kyc.stages.proofOfResidence.status as is_por_approved
+        from development.bronze_rbt_uat.customer_db___kyc_scd2 as  kyc 
+      where kyc.__END_AT is NULL
+      ), 
+    extracted_stageidentity as(
+        select 
+            client_id,
+            kyc_application_id,
+            CASE WHEN is_poi_present IS NOT  NULL THEN 1 ELSE 0 END as is_poi_present ,
+            CASE WHEN is_poi_approved = 'Approved' THEN 1 ELSE 0 END as is_poi_approved,
+            is_poi_por_combined
+        from stage_identity
+        ),
+    extracted_stageproofOfResidence as(
+        select 
+            client_id,
+            kyc_application_id,
+            CASE WHEN  is_por_present IS NOT NULL THEN 1 ELSE 0 END as is_por_present,
+            CASE WHEN is_por_approved ='Approved' THEN 1 ELSE 0 END as is_por_approved 
+        from stage_proofOfResidence
+        )
+        SELECT 
+            poi.client_id,
+            poi.kyc_application_id,
+            is_por_present,
+            is_por_approved,
+            is_poi_present,
+            is_poi_approved,
+            is_poi_por_combined
+        from extracted_stageidentity  as poi LEFT JOIN extracted_stageproofOfResidence por on  poi.client_id=por.client_id order by client_id
+""")
+
+
+actual_df=spark.sql("""
+    select
+        client_id,
+        kyc_application_id,
+        is_por_present,
+        is_por_approved,
+        is_poi_present,
+        is_poi_approved,
+        is_poi_por_combined
+    from development.silver_dwh_uat.kyc order by client_id"""
+    )
+
+# Cache DataFrames
+expected_df.cache()
+actual_df.cache()
+
+# Get the row counts of both DataFrames
+expected_count = expected_df.count()
+actual_count = actual_df.count()
+print(expected_count)
+print(actual_count)
+
+
+# Perform the DataFrame comparison
+expected_df_except_actual_df = expected_df.exceptAll(actual_df)
+actual_df_except_expected_df = actual_df.exceptAll(expected_df)
+
+# Counts the number of different rows
+differences_count = expected_df_except_actual_df.count() + actual_df_except_expected_df.count()
+print(differences_count)
+
+# df= spark.sql("""select case when 
+# differences_count = 0 then "Match"
+# else "No Match" end as diff""")
+# column_transformation= str(df.collect()[0][0])
+
+column_transformation= 'Match' if differences_count == 0 else 'No Match'
+if differences_count == 0:
+    print("Match")
+else:
+    print("No Match")
+
+
+# Exception handling for data mismatch
+if differences_count == 0:
+    print("DataFrames are equal")
+else:
+    print("DataFrames are not equal")
+    
+    # Show differences and raise an error if mismatches exist
+    print("Differences in expected_df not in actual_df:")
+    expected_df_except_actual_df.show(100, False)
+    
+    print("Differences in actual_df not in expected_df:")
+    actual_df_except_expected_df.show(100, False)
+
+    raise Exception(f"Data mismatch: {differences_count} rows differ between expected_df and actual_df.")
+
+
+
+-- Adding to validation table
+
+    from pyspark.sql import Row
+from pyspark.sql.functions import lit, current_date
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DateType
+from datetime import datetime
+
+
+schema = StructType([
+    StructField("Silver_table_name", StringType(), True),
+    StructField("Source_count", IntegerType(), True),
+    StructField("Target_count", IntegerType(), True),
+    StructField("Column_transformation", StringType(), True),
+    StructField("PK_keys", StringType(), True),
+    StructField("Derived_columns", StringType(), True),
+    StructField("Duplicate_check", StringType(), True),
+    StructField("ts_date", DateType(), True)])
+
+
+new_row = spark.createDataFrame([(
+    "kyc", 
+    int(expected_count), 
+    int(actual_count), 
+    column_transformation,
+    PK_Keys,
+    "NA",
+    Duplicate_check,
+    datetime.today().date()  
+)], schema=schema)
+
+
+new_row.write.mode("append").saveAsTable("development.validation_dev.silver_tables_validation")
+display(spark.sql("SELECT * FROM development.validation_dev.silver_tables_validation"))
+
+
+
