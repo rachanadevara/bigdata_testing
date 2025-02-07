@@ -1,0 +1,25 @@
+Along with other check we have scd2 check in gold. refer what are  scd1,scd2 in google
+I don't know why we have this check till now. 
+-- SCD2 check
+
+
+SCD_PP = spark.sql("""SELECT SUM(total_count) AS sum_of_counts
+FROM (  SELECT COUNT(*) AS total_count
+  FROM (SELECT ft.transfer_id,ft.transfer_sub_type_key ,ft.source_schema,ft.adjustment_id, COUNT(*)
+    FROM development.gold_dm_uat.fct_transfer ft
+    GROUP BY ft.transfer_id,ft.transfer_sub_type_key ,ft.source_schema,ft.adjustment_id
+    HAVING COUNT(*) = 1) t1
+  UNION
+  SELECT COUNT(*) AS total_count
+  FROM (SELECT ft.transfer_id,ft.transfer_sub_type_key ,ft.source_schema,ft.adjustment_id, COUNT(*)
+    FROM development.gold_dm_uat.fct_transfer ft
+    GROUP BY ft.transfer_id,ft.transfer_sub_type_key ,ft.source_schema,ft.adjustment_id
+    HAVING COUNT(*) > 1) t2)""")
+
+SCD_PP1 = spark.sql("""select count(*) as count from (select distinct ft.transfer_id,ft.transfer_sub_type_key ,ft.source_schema,ft.adjustment_id from development.gold_dm_uat.fct_transfer ft)""")
+
+SCD_PP_value = SCD_PP.collect()[0]['sum_of_counts']
+SCD_PP1_value = SCD_PP1.collect()[0]['count']
+
+SCD2_check = 'Match' if SCD_PP_value == SCD_PP1_value else 'No Match'.collect()[0][0]
+print(SCD2_check)
