@@ -1,0 +1,130 @@
+User Story Completion and Walkthrough:
+
+Upon completion of a user story by the development team, a DEVELOPER/BA Walkthrough is conducted. This session facilitates a comprehensive understanding of the implemented features, including data transformations, business rules, and architectural decisions.
+
+During this walkthrough, the following key points are discussed:
+
+Acceptance Criteria: Ensure all acceptance criteria defined in the user story are understood and met.
+
+Code Changes: Overview of significant code changes, including any new code change, addition of columns/tables/Mapping.
+
+Integration Points: Identification of any integration with external systems or services.
+
+ Jira Userstory Description:
+
+The user story in Jira must be enriched with both Functional and Technical Descriptions. This includes:
+
+Functional Description: Clear articulation of what the feature is supposed to achieve from a user perspective.
+
+Technical Description: Detailed insights into the underlying technical components, such as database schema changes, APIs utilized, and third-party libraries/connector implemented.
+
+Test Case Creation in TestRail/Confluence:
+
+Based on the user story and acceptance criteria, relevant test cases are created in TestRail/Confluence. Each test case should include:
+
+Test Case ID: A unique identifier for tracking.
+
+Preconditions: Any necessary setup or context required to execute the test.
+
+Test Steps: Detailed steps for executing the test.
+
+Expected Results: Clearly defined expected outcomes for validation.
+
+Test Execution and Reporting:
+
+Test cases should be executed in accordance with the functionality. Execution results must be meticulously recorded in TestRail/Confluence
+
+If defects are identified during testing:
+
+The defect should be assigned to the appropriate developer for resolution in Jira
+
+Scenario and Test Case Review:
+
+A session should be held with the Business Analyst (BA) to present all scenarios/test cases, ensuring comprehensive coverage of the user story. During this review:
+
+Additional validation scenarios may be identified based on stakeholder feedback.
+
+Any edge cases or non-functional requirements (performance, security) should be discussed.
+
+Closure of User Story:
+
+Before moving the user story to a closed status:
+
+All test cases must be executed, with results documented in TestRail/Confluence.
+
+All defects must be addressed and marked as resolved or closed in Jira.
+
+Proper comments should be added to the user story, summarizing:
+
+Testing Outcomes: Brief on test execution results.
+
+Defect Status: Summary of any defects raised, resolved, or still pending.
+
+Final Comments: Any additional insights or recommendations for future iterations.
+
+Post-Release Verification (Optional):
+
+After deployment, it’s beneficial to conduct a post-release verification to confirm that the changes function as intended in the production environment. This may involve:
+
+Smoke Testing: Quick checks to ensure the application is stable.
+
+User Feedback: Collecting feedback from end-users to identify any issues not captured during testing.
+
+Additional Considerations
+
+Regression Testing: Ensure that regression tests are conducted to verify that new changes haven’t adversely affected existing functionalities.
+
+Test Automation: Consider implementing test automation for critical test cases to improve efficiency and coverage.
+
+Documentation and Knowledge Sharing: Maintain a repository of test case documentation and lessons learned for future reference.
+
+ image:
+ 
+
+ 
+
+
+Basic validation (Quality Assurance) 
+Metadata Validation on schema details 
+
+Ensure that the data types and columns match the expected
+
+Count Validation
+
+Column level transformation - SCD2/Mapping/Lookup Transformation (sample records)
+
+Data Integrity:
+
+Null constraint
+
+key columns
+
+Derived Attributes
+
+Duplicate/Reference Data Check
+
+Regression:
+
+Automate the above-mentioned validations for the critical columns to make sure the data populates properly in the Target (Purpose: New changes haven’t adversely affected existing functionalities)
+
+Advanced validation (Data Quality - Troubleshoot)
+
+DQ it will be Automated Dev/QA - Raise a alert through email.
+
+Identify any outliers or anomalies in the transformed data
+
+Critical/Derived Attributes Data integrity & aggregated checks (bronze to Gold).
+
+Data Lineage: Ensure that data lineage is documented and traceable throughout transformations.
+
+Validate that Key Performance Indicators (KPIs) derived from the gold layer are correct.
+
+BI_reporting:
+
+Semantic Layer and BI-reporting Validation:
+
+Data Completeness and consistency 
+
+Business logics on the data Transformations
+
+Metrics and calculation accuracy and data Refresh checks in the dashboard
